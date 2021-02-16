@@ -1,39 +1,78 @@
+const webpack = require('webpack')
+const WebpackModules = require('webpack-modules')
 const path = require('path')
-const htmlWebpackPlugin = require('html-webpack-plugin')
-const HtmlWebpackPlugin = require('html-webpack-plugin')
+const config = require('sapper/config/webpack.js')
+const pkg = require('./package.json')
+
+const mode = process.env.NODE_ENV
+const dev = mode === 'development'
+
+const alias = { svelte: path.resolve('node_modules', 'svelte') }
+const extensions = ['.mjs', '.js', '.json', '.svelte', '.html']
+const mainFields = ['svelte', 'module', 'browser', 'main']
 
 module.exports = {
-    entry: './src/index.js',
-    output: {
-        path: path.resolve(__dirname, 'dist'),
-        filename: 'bundle.js'
+    client: {
+        entry: config.client.entry(),
+        output: config.client.output(),
+        resolve: { alias, extensions, mainFields},
+        module: {
+            rules: [
+                {
+                    test: /\.(svelte|html)$/,
+                    use: {
+                        loader: 'svelte-loader',
+                        options: {
+                            dev,
+                            hydratable: true,
+                            hotReload: false,
+                        }
+                    }
+                },
+            ]
+        }, 
+        mode,
+        plugins: [
+            new webpack.DefinePlugin({
+                'process.browser': true,
+                'process.env.NODE_ENV': JSON.stringify(mode)
+            }),
+        ].filter(Boolean),
+        devtool: dev && 'inline-source-map'
     },
-    resolve: {
-        extensions: ['*', '.mjs', '.js', '.svelte']
-    },
-    module: {
-        rules: [
-            {
-                test: /\.js?$/,
-                exclude: /node_modules/,
-                use:{
-                    loader: 'babel-loader'
+    server: {
+        entry: config.server.entry(),
+        output: config.server.output(),
+        target: 'node',
+        resolve: { alias, extensions, mainFields},
+        externals: Object.keys(pkg.dependencies).concat('encoding'),
+        module: {
+            rules: [
+                {
+                    test: /\.(svelte|html)$/,
+                    use: {
+                        loader: 'svelte-loader',
+                        options: {
+                            dev,
+                            css: false,
+                            generate: 'ssr', 
+                            hydratable: true
+                        }
+                    }
                 }
-            },
-            {
-                test: /\.svelte$/,
-                exclude: /node_modules/,
-                use: {
-                    loader: 'svelte-loader'
-                }
-            }
-        ]
+            ]
+        },
+        mode: process.env.NODE_ENV,
+        plugins: [
+			new WebpackModules()
+		],
+        performance: {
+            hints: false
+        }
     },
-    plugins: [
-        new HtmlWebpackPlugin({
-            inject: true, 
-            template: './public/index.html',
-            filename: './index.html'
-        })
-    ]
+    serviceworker: {
+        entry: config.serviceworker.entry(),
+        output: config.serviceworker.output(),
+        mode: process.env.NODE_ENV
+    }
 }
